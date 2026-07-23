@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from app.db.base import Base
 from app.db.database import engine
 
-from app.routers import customer
+from app.routers import customer, note
 
 # Creating all database tables
 Base.metadata.create_all(bind=engine)
@@ -16,6 +16,7 @@ app = FastAPI(
 
 # Registering routers
 app.include_router(customer.router)
+app.include_router(note.router)
 
 @app.get("/")
 def root():
