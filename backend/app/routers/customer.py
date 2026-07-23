@@ -74,3 +74,14 @@ def delete_customer_endpoint(
 ):
     delete_customer(db, customer_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+from app.services.ai_service import generate_customer_summary
+
+@router.get(
+    "/{customer_id}/ai-summary",
+)
+def get_customer_ai_summary(
+    customer_id: int,
+    db: Session = Depends(get_db),
+):
+    return generate_customer_summary(db, customer_id)

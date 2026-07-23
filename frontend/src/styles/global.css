@@ -1,0 +1,329 @@
+@import "tailwindcss";
+
+:root {
+  --background: #faf8f5;
+  --surface: #ffffff;
+  --primary: #c86e4b;
+  --primary-hover: #b85e3d;
+  --accent: #e8d8cc;
+  --text: #2d2a26;
+  --text-secondary: #7a746e;
+  --border: #e7e1da;
+  --success: #7ea172;
+  --warning: #d9a441;
+  --spacing: 0.25rem;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--background);
+  color: var(--text);
+  font-family:
+    "Manrope",
+    system-ui,
+    sans-serif;
+}
+
+/* Layout & Spacing Fallbacks (in case browser does not support CSS @layer) */
+
+.w-72 {
+  width: 288px !important;
+}
+
+.min-w-72 {
+  min-width: 288px !important;
+}
+
+.w-full {
+  width: 100% !important;
+}
+
+.h-screen {
+  height: 100vh !important;
+}
+
+.h-full {
+  height: 100% !important;
+}
+
+.flex {
+  display: flex !important;
+}
+
+.flex-col {
+  flex-direction: column !important;
+}
+
+.flex-shrink-0 {
+  flex-shrink: 0 !important;
+}
+
+.flex-1 {
+  flex: 1 1 0% !important;
+}
+
+.grid {
+  display: grid !important;
+}
+
+.grid-cols-1 {
+  grid-template-columns: repeat(1, minmax(0, 1fr)) !important;
+}
+
+/* Padding & Margin */
+.p-4 {
+  padding: 16px !important;
+}
+
+.p-6 {
+  padding: 24px !important;
+}
+
+.p-8 {
+  padding: 32px !important;
+}
+
+.p-16 {
+  padding: 64px !important;
+}
+
+.px-2 {
+  padding-left: 8px !important;
+  padding-right: 8px !important;
+}
+
+.px-3 {
+  padding-left: 12px !important;
+  padding-right: 12px !important;
+}
+
+.px-4 {
+  padding-left: 16px !important;
+  padding-right: 16px !important;
+}
+
+.px-5 {
+  padding-left: 20px !important;
+  padding-right: 20px !important;
+}
+
+.px-6 {
+  padding-left: 24px !important;
+  padding-right: 24px !important;
+}
+
+.py-2 {
+  padding-top: 8px !important;
+  padding-bottom: 8px !important;
+}
+
+.py-3 {
+  padding-top: 12px !important;
+  padding-bottom: 12px !important;
+}
+
+.py-4 {
+  padding-top: 16px !important;
+  padding-bottom: 16px !important;
+}
+
+.pl-10 {
+  padding-left: 40px !important;
+}
+
+.pr-4 {
+  padding-right: 16px !important;
+}
+
+.pt-4 {
+  padding-top: 16px !important;
+}
+
+.pt-5 {
+  padding-top: 20px !important;
+}
+
+.pt-6 {
+  padding-top: 24px !important;
+}
+
+.pt-8 {
+  padding-top: 32px !important;
+}
+
+.pt-10 {
+  padding-top: 40px !important;
+}
+
+.pb-2 {
+  padding-bottom: 8px !important;
+}
+
+.pb-4 {
+  padding-bottom: 16px !important;
+}
+
+.pb-5 {
+  padding-bottom: 20px !important;
+}
+
+.mt-4 {
+  margin-top: 16px !important;
+}
+
+.mt-6 {
+  margin-top: 24px !important;
+}
+
+.mb-4 {
+  margin-bottom: 16px !important;
+}
+
+.mb-6 {
+  margin-bottom: 24px !important;
+}
+
+/* Gap & Spacing */
+.gap-1 {
+  gap: 4px !important;
+}
+
+.gap-1\.5 {
+  gap: 6px !important;
+}
+
+.gap-2\.5 {
+  gap: 10px !important;
+}
+
+.gap-3 {
+  gap: 12px !important;
+}
+
+.gap-4 {
+  gap: 16px !important;
+}
+
+.gap-6 {
+  gap: 24px !important;
+}
+
+.space-y-1 > * + * {
+  margin-top: 4px !important;
+}
+
+.space-y-2 > * + * {
+  margin-top: 8px !important;
+}
+
+.space-y-3 > * + * {
+  margin-top: 12px !important;
+}
+
+.space-y-4 > * + * {
+  margin-top: 16px !important;
+}
+
+.space-y-6 > * + * {
+  margin-top: 24px !important;
+}
+
+.space-y-8 > * + * {
+  margin-top: 32px !important;
+}
+
+/* Typography sizes */
+.text-xs {
+  font-size: 12px !important;
+}
+
+.text-sm {
+  font-size: 14px !important;
+}
+
+.text-base {
+  font-size: 16px !important;
+}
+
+.text-lg {
+  font-size: 18px !important;
+}
+
+.text-xl {
+  font-size: 20px !important;
+}
+
+.text-2xl {
+  font-size: 24px !important;
+}
+
+.text-3xl {
+  font-size: 30px !important;
+}
+.left-3 {
+  left: 12px !important;
+}
+
+.pl-5 {
+  padding-left: 20px !important;
+}
+
+.py-1 {
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+}
+
+.px-2\.5 {
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+}
+
+.border-l-2 {
+  border-left-width: 2px !important;
+  border-left-style: solid !important;
+}
+
+.left-\[-5px\] {
+  left: -5px !important;
+}
+
+.h-mockup {
+  height: 270px !important;
+}
+
+/* Responsive grid/block media queries */
+@media (min-width: 768px) {
+  .md\:block {
+    display: block !important;
+  }
+  .md\:flex-row {
+    flex-direction: row !important;
+  }
+  .md\:items-center {
+    align-items: center !important;
+  }
+  .md\:grid-cols-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  .lg\:block {
+    display: block !important;
+  }
+  .lg\:grid-cols-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+  .lg\:grid-cols-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+}
