@@ -32,6 +32,9 @@ def create_note(
     db.commit()
     db.refresh(note)
 
+    from app.services.ai_service import mark_summary_outdated
+    mark_summary_outdated(db, customer_id)
+
     return note
 
 def get_notes_by_customer(
@@ -80,6 +83,9 @@ def update_note(
     db.commit()
     db.refresh(note)
 
+    from app.services.ai_service import mark_summary_outdated
+    mark_summary_outdated(db, note.customer_id)
+
     return note
 
 
@@ -99,5 +105,9 @@ def delete_note(
             detail="Note not found.",
         )
 
+    customer_id = note.customer_id
     db.delete(note)
     db.commit()
+
+    from app.services.ai_service import mark_summary_outdated
+    mark_summary_outdated(db, customer_id)

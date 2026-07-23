@@ -6,3 +6,4 @@ class Base(DeclarativeBase):
 
 from app.models.customer import Customer
 from app.models.note import Note
+from app.models.ai_summary import AISummary

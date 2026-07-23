@@ -42,8 +42,11 @@ export interface NoteUpdate {
 }
 
 export interface AISummary {
+  id?: number;
+  customer_id?: number;
   summary: string;
   insights: string[];
   action_items: string[];
+  is_outdated?: boolean;
   last_updated: string;
 }

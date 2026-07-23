@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Users, TrendingUp, Bot, MessageSquare, ArrowRight } from "lucide-react";
+import { Users, TrendingUp, Bot, MessageSquare, ArrowRight, Trash2, Plus } from "lucide-react";
 import StatCard from "../../components/layout/StatCard";
 import { customerApi } from "../../services/api";
 import type { Customer } from "../../types";
@@ -12,6 +12,50 @@ function DashboardPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Task state (persisted to localStorage)
+  const [tasks, setTasks] = useState<{ id: string; text: string; completed: boolean }[]>(() => {
+    const saved = localStorage.getItem("crm_tasks");
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        // Fallback
+      }
+    }
+    return [
+      { id: "1", text: "Follow up with Madhav Khera regarding Rs. 5,000 budget cap", completed: false },
+      { id: "2", text: "Prepare starter packages for Gupshup", completed: false },
+      { id: "3", text: "Conduct scheduled Monday follow-up call", completed: true },
+    ];
+  });
+  const [newTaskText, setNewTaskText] = useState("");
+
+  useEffect(() => {
+    localStorage.setItem("crm_tasks", JSON.stringify(tasks));
+  }, [tasks]);
+
+  const handleAddTask = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTaskText.trim()) return;
+    const newTask = {
+      id: Date.now().toString(),
+      text: newTaskText.trim(),
+      completed: false,
+    };
+    setTasks((prev) => [...prev, newTask]);
+    setNewTaskText("");
+  };
+
+  const handleToggleTask = (taskId: string) => {
+    setTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, completed: !t.completed } : t))
+    );
+  };
+
+  const handleDeleteTask = (taskId: string) => {
+    setTasks((prev) => prev.filter((t) => t.id !== taskId));
+  };
 
   useEffect(() => {
     async function fetchStats() {
@@ -165,39 +209,64 @@ function DashboardPage() {
           </div>
         </div>
 
-        {/* Quick Tips / Quick Actions Panel */}
-        <div className="rounded-3xl bg-white border border-[var(--border)] p-6 space-y-5">
-          <h3 className="font-bold text-[var(--text)] text-base">
-            CRM Checklist
-          </h3>
-          <div className="space-y-4 text-sm">
-            <div className="flex items-start gap-3">
-              <input type="checkbox" defaultChecked className="mt-1 accent-[var(--primary)]" />
-              <div>
-                <p className="font-bold text-[var(--text)]">Frontend scaffolding</p>
-                <p className="text-xs text-[var(--text-secondary)]">Establish routes, themes and custom styles.</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <input type="checkbox" defaultChecked className="mt-1 accent-[var(--primary)]" />
-              <div>
-                <p className="font-bold text-[var(--text)]">CORS & Database connectivity</p>
-                <p className="text-xs text-[var(--text-secondary)]">Bind FastAPI routing with local database.</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <input type="checkbox" defaultChecked className="mt-1 accent-[var(--primary)]" />
-              <div>
-                <p className="font-bold text-[var(--text)]">Customer Directory</p>
-                <p className="text-xs text-[var(--text-secondary)]">Build list grids and customer update views.</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <input type="checkbox" className="mt-1 accent-[var(--primary)]" />
-              <div>
-                <p className="font-bold text-[var(--text)]">Interact with Sales Assistant</p>
-                <p className="text-xs text-[var(--text-secondary)]">Enable notes timeline and run AI summaries.</p>
-              </div>
+        {/* Interactive Tasks Panel */}
+        <div className="rounded-3xl bg-white border border-[var(--border)] p-6 space-y-5 flex flex-col justify-between">
+          <div className="space-y-4">
+            <h3 className="font-bold text-[var(--text)] text-base">
+              Sales Tasks
+            </h3>
+            
+            <form onSubmit={handleAddTask} className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Add a sales task..."
+                value={newTaskText}
+                onChange={(e) => setNewTaskText(e.target.value)}
+                className="flex-1 px-3 py-1.5 text-xs rounded-xl border border-[var(--border)] bg-[var(--background)] focus:outline-none focus:border-[var(--primary)] text-[var(--text)]"
+              />
+              <button
+                type="submit"
+                className="p-2 rounded-xl bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)] transition-colors cursor-pointer flex items-center justify-center flex-shrink-0"
+              >
+                <Plus size={14} />
+              </button>
+            </form>
+
+            <div className="space-y-2.5 max-h-[220px] overflow-y-auto pr-1">
+              {tasks.length === 0 ? (
+                <p className="text-xs text-[var(--text-secondary)] text-center py-4">
+                  No tasks left! Nice job.
+                </p>
+              ) : (
+                tasks.map((task) => (
+                  <div
+                    key={task.id}
+                    className="flex items-center justify-between gap-2 p-2 rounded-xl border border-[var(--border)] hover:bg-[var(--background)]/40 transition-colors"
+                  >
+                    <div
+                      onClick={() => handleToggleTask(task.id)}
+                      className="flex items-start gap-3 cursor-pointer select-none flex-1 min-w-0"
+                    >
+                      <div className={`custom-checkbox ${task.completed ? "checked" : ""}`}>
+                        {task.completed && (
+                          <svg className="h-2.5 w-2.5 text-white fill-current" viewBox="0 0 20 20">
+                            <path d="M0 11l2-2 5 5L18 3l2 2L7 18z" fill="#ffffff" />
+                          </svg>
+                        )}
+                      </div>
+                      <span className={`text-xs leading-normal truncate ${task.completed ? "line-through text-[var(--text-secondary)]" : "text-[var(--text)] font-semibold"}`}>
+                        {task.text}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => handleDeleteTask(task.id)}
+                      className="p-1 rounded-lg text-[var(--text-secondary)] hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

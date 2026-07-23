@@ -80,6 +80,10 @@ body {
 }
 
 /* Padding & Margin */
+.p-3 {
+  padding: 12px !important;
+}
+
 .p-4 {
   padding: 16px !important;
 }
@@ -326,4 +330,58 @@ body {
   .lg\:grid-cols-4 {
     grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
   }
+}
+
+/* AI Summary UI Overrides & Alignment Fixes */
+ul.space-y-2\.5, 
+.space-y-3 ul {
+  list-style: none !important;
+  list-style-type: none !important;
+  padding-left: 0 !important;
+  margin-left: 0 !important;
+}
+
+li.flex.items-start, 
+.space-y-3 li {
+  list-style: none !important;
+  list-style-type: none !important;
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 10px !important;
+}
+
+.insight-row {
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 10px !important;
+  text-align: left !important;
+}
+
+.insight-dot {
+  width: 6px !important;
+  height: 6px !important;
+  border-radius: 50% !important;
+  background-color: var(--primary) !important;
+  margin-top: 5px !important;
+  flex-shrink: 0 !important;
+}
+
+.custom-checkbox {
+  width: 16px !important;
+  height: 16px !important;
+  border-radius: 4px !important;
+  border: 1.5px solid var(--border) !important;
+  background-color: #ffffff !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+  margin-top: 2px !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+}
+
+.custom-checkbox.checked {
+  background-color: var(--primary) !important;
+  border-color: var(--primary) !important;
 }

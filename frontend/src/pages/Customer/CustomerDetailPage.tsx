@@ -13,6 +13,7 @@ import {
   Plus,
   MessageSquare,
   RefreshCw,
+  ArrowRight,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { customerApi, noteApi, aiApi } from "../../services/api";
@@ -89,10 +90,17 @@ function CustomerDetailPage() {
       const notesData = await noteApi.getByCustomerId(customerId);
       setNotes(notesData);
 
-      // Generate AI Summary
+      // Fetch stored AI Summary
       setIsAiLoading(true);
-      const summary = await aiApi.getSummary(customerId, customerData.name, notesData);
-      setAiSummary(summary);
+      try {
+        const summary = await aiApi.getSummary(customerId);
+        setAiSummary(summary);
+      } catch (err) {
+        console.error("Failed to query stored summary:", err);
+        setAiSummary(null);
+      } finally {
+        setIsAiLoading(false);
+      }
     } catch (err) {
       console.error(err);
       showToast("Unable to synchronize profile parameters.", "error");
@@ -128,8 +136,8 @@ function CustomerDetailPage() {
       showToast("Profile details updated successfully.", "success");
       setIsEditModalOpen(false);
       
-      // Refresh AI summary dynamically since status might have changed
-      syncAISummary(updated.name, notes);
+      // Mark AI summary as outdated locally
+      setAiSummary((prev) => (prev ? { ...prev, is_outdated: true } : null));
     } catch (err) {
       console.error(err);
       showToast("Could not modify customer profile details.", "error");
@@ -168,10 +176,8 @@ function CustomerDetailPage() {
       setNewNoteContent("");
       showToast("Log entry saved.", "success");
 
-      // Auto update AI Assistant summary to react to new note logs
-      if (customer) {
-        syncAISummary(customer.name, updatedNotes);
-      }
+      // Mark AI summary as outdated locally
+      setAiSummary((prev) => (prev ? { ...prev, is_outdated: true } : null));
     } catch (err) {
       console.error(err);
       showToast("Unable to append interaction log.", "error");
@@ -199,9 +205,8 @@ function CustomerDetailPage() {
       setEditingNoteId(null);
       showToast("Log entry updated successfully.", "success");
 
-      if (customer) {
-        syncAISummary(customer.name, updatedNotes);
-      }
+      // Mark AI summary as outdated locally
+      setAiSummary((prev) => (prev ? { ...prev, is_outdated: true } : null));
     } catch (err) {
       console.error(err);
       showToast("Could not modify interaction log entry.", "error");
@@ -220,9 +225,8 @@ function CustomerDetailPage() {
       setNoteToDelete(null);
       showToast("Log entry deleted.", "success");
 
-      if (customer) {
-        syncAISummary(customer.name, updatedNotes);
-      }
+      // Mark AI summary as outdated locally
+      setAiSummary((prev) => (prev ? { ...prev, is_outdated: true } : null));
     } catch (err) {
       console.error(err);
       showToast("Could not delete note.", "error");
@@ -231,14 +235,19 @@ function CustomerDetailPage() {
     }
   };
 
-  const syncAISummary = async (cName: string, notesList: Note[]) => {
+  const handleGenerateAISummary = async () => {
+    if (notes.length === 0) {
+      showToast("Cannot generate summary without note logs.", "warning");
+      return;
+    }
     setIsAiLoading(true);
     try {
-      const summary = await aiApi.getSummary(customerId, cName, notesList);
+      const summary = await aiApi.generateSummary(customerId);
       setAiSummary(summary);
-      showToast("AI Sales Assistant synced relationship notes.", "success");
+      showToast("AI Sales Assistant generated summary.", "success");
     } catch (err) {
       console.error(err);
+      showToast("Failed to compile AI summaries.", "error");
     } finally {
       setIsAiLoading(false);
     }
@@ -476,15 +485,38 @@ function CustomerDetailPage() {
               </div>
               
               {/* Sync Trigger button */}
-              <button
-                onClick={() => syncAISummary(customer.name, notes)}
-                disabled={isAiLoading || notes.length === 0}
-                className="p-1.5 rounded-xl border border-[var(--border)] text-xs font-bold text-[var(--text-secondary)] hover:text-[var(--text)] hover:bg-[var(--background)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer flex items-center gap-1"
-              >
-                <RefreshCw size={14} className={isAiLoading ? "animate-spin" : ""} />
-                Sync
-              </button>
+              {aiSummary && (
+                <button
+                  onClick={handleGenerateAISummary}
+                  disabled={isAiLoading || notes.length === 0}
+                  className={`p-1.5 rounded-xl border text-xs font-bold transition-colors cursor-pointer flex items-center gap-1 ${
+                    aiSummary.is_outdated
+                      ? "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                      : "border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text)] hover:bg-[var(--background)]"
+                  }`}
+                >
+                  <RefreshCw size={14} className={isAiLoading ? "animate-spin" : ""} />
+                  Refresh
+                </button>
+              )}
             </div>
+
+            {/* Outdated Warning Banner */}
+            {aiSummary && aiSummary.is_outdated && (
+              <div className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-amber-50/85 border border-amber-200 text-xs text-amber-800 font-bold relative z-10">
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                  Summary out of date
+                </span>
+                <button
+                  onClick={handleGenerateAISummary}
+                  disabled={isAiLoading || notes.length === 0}
+                  className="px-2.5 py-1 rounded-xl bg-amber-600 text-white text-[10px] font-extrabold hover:bg-amber-700 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  Refresh AI Summary
+                </button>
+              </div>
+            )}
 
             <AnimatePresence mode="wait">
               {isAiLoading ? (
@@ -495,7 +527,7 @@ function CustomerDetailPage() {
                   exit={{ opacity: 0 }}
                   className="space-y-4 py-4"
                 >
-                  <div className="flex items-center gap-2.5 text-xs font-bold text-[var(--text-secondary)]">
+                  <div className="flex items-center gap-3 text-xs font-bold text-[var(--text-secondary)]">
                     <div className="h-1.5 w-1.5 bg-[var(--primary)] rounded-full animate-ping" />
                     Consulting Gemini model...
                   </div>
@@ -524,14 +556,14 @@ function CustomerDetailPage() {
                     <span className="text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)]">
                       Behavioral Insights
                     </span>
-                    <ul className="space-y-2.5">
+                    <div className="space-y-3">
                       {aiSummary.insights.map((insight, idx) => (
-                        <li key={idx} className="flex items-start gap-2.5 text-xs text-[var(--text)]">
-                          <span className="h-1.5 w-1.5 rounded-full bg-[var(--primary)] mt-1.5 flex-shrink-0" />
+                        <div key={idx} className="insight-row text-xs text-[var(--text)]">
+                          <span className="insight-dot" />
                           <span className="leading-normal">{insight}</span>
-                        </li>
+                        </div>
                       ))}
-                    </ul>
+                    </div>
                   </div>
 
                   {/* Recommended Action items */}
@@ -546,27 +578,15 @@ function CustomerDetailPage() {
                           <div
                             key={idx}
                             onClick={() => toggleActionItem(action)}
-                            className="
-                              flex
-                              items-start
-                              gap-2.5
-                              p-2.5
-                              rounded-xl
-                              border
-                              border-[var(--border)]
-                              bg-white
-                              hover:bg-[var(--background)]/40
-                              transition-colors
-                              cursor-pointer
-                              select-none
-                            "
+                            className="flex items-start gap-3 p-3 rounded-xl border border-[var(--border)] bg-white hover:bg-[var(--background)]/40 transition-colors cursor-pointer select-none"
                           >
-                            <input
-                              type="checkbox"
-                              checked={isDone}
-                              readOnly
-                              className="mt-0.5 accent-[var(--primary)] flex-shrink-0"
-                            />
+                            <div className={`custom-checkbox ${isDone ? "checked" : ""}`}>
+                              {isDone && (
+                                <svg className="h-2.5 w-2.5 text-white fill-current" viewBox="0 0 20 20">
+                                  <path d="M0 11l2-2 5 5L18 3l2 2L7 18z" fill="#ffffff" />
+                                </svg>
+                              )}
+                            </div>
                             <span className={`text-xs leading-normal ${isDone ? "line-through text-[var(--text-secondary)]" : "text-[var(--text)] font-semibold"}`}>
                               {action}
                             </span>
@@ -578,8 +598,8 @@ function CustomerDetailPage() {
 
                   {/* Timestamp */}
                   {aiSummary.last_updated && (
-                    <div className="text-[10px] text-right text-[var(--text-secondary)]">
-                      Refreshed: {parseUTCDate(aiSummary.last_updated).toLocaleTimeString("en-IN", {
+                    <div className="text-[10px] text-right text-[var(--text-secondary)] font-semibold">
+                      Refreshed: {parseUTCDate(aiSummary.last_updated).toLocaleString("en-IN", {
                         timeZone: "Asia/Kolkata",
                         hour: "2-digit",
                         minute: "2-digit",
@@ -588,8 +608,23 @@ function CustomerDetailPage() {
                   )}
                 </motion.div>
               ) : (
-                <div className="text-xs text-center py-6 text-[var(--text-secondary)]">
-                  Add note logs to run AI assessments.
+                <div className="text-center py-6 space-y-4">
+                  <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+                    No AI summary generated for this profile yet. Start by logging interaction notes.
+                  </p>
+                  <Button
+                    onClick={handleGenerateAISummary}
+                    disabled={isAiLoading || notes.length === 0}
+                    fullWidth
+                  >
+                    <span>Generate AI Summary</span>
+                    <ArrowRight size={14} />
+                  </Button>
+                  {notes.length === 0 && (
+                    <p className="text-[10px] text-amber-600 font-bold leading-normal">
+                      * Add at least one interaction note to generate a summary.
+                    </p>
+                  )}
                 </div>
               )}
             </AnimatePresence>

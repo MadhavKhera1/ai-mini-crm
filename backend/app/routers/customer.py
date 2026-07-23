@@ -75,13 +75,25 @@ def delete_customer_endpoint(
     delete_customer(db, customer_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-from app.services.ai_service import generate_customer_summary
+from app.schemas.ai_summary import AISummaryResponse
+from app.services.ai_service import get_stored_summary, generate_and_store_summary
 
 @router.get(
     "/{customer_id}/ai-summary",
+    response_model=AISummaryResponse,
 )
 def get_customer_ai_summary(
     customer_id: int,
     db: Session = Depends(get_db),
 ):
-    return generate_customer_summary(db, customer_id)
+    return get_stored_summary(db, customer_id)
+
+@router.post(
+    "/{customer_id}/ai-summary/generate",
+    response_model=AISummaryResponse,
+)
+def generate_customer_ai_summary(
+    customer_id: int,
+    db: Session = Depends(get_db),
+):
+    return generate_and_store_summary(db, customer_id)
