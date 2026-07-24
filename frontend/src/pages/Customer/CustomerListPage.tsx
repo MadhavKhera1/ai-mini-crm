@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Search, User } from "lucide-react";
+import { Plus, Search, User, Upload, X, FileText, AlertCircle, Bot } from "lucide-react";
 import { motion } from "framer-motion";
 import { customerApi } from "../../services/api";
 import type { Customer } from "../../types";
@@ -20,6 +20,115 @@ function CustomerListPage() {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
+
+  // Import CSV state
+  const [isImportOpen, setIsImportOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadStep, setUploadStep] = useState("");
+  const [dragActive, setDragActive] = useState(false);
+  const [importResult, setImportResult] = useState<{
+    total: number;
+    imported: number;
+    skipped: number;
+    failed: number;
+    errors: string[];
+  } | null>(null);
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const file = e.dataTransfer.files[0];
+      if (file.name.endsWith(".csv")) {
+        setImportFile(file);
+      } else {
+        showToast("Invalid file format. Please select a CSV file.", "warning");
+      }
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      if (file.name.endsWith(".csv")) {
+        setImportFile(file);
+      } else {
+        showToast("Invalid file format. Please select a CSV file.", "warning");
+      }
+    }
+  };
+
+  const triggerUpload = async () => {
+    if (!importFile) return;
+    setIsUploading(true);
+    setImportResult(null);
+
+    setUploadStep("Uploading file...");
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    
+    setUploadStep("Reading CSV stream...");
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    
+    setUploadStep("Importing customer records...");
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    
+    try {
+      const result = await customerApi.importCustomers(importFile);
+      setImportResult(result);
+      showToast(`Import complete! ${result.imported} profiles added successfully.`, "success");
+      
+      const updatedList = await customerApi.getAll();
+      setCustomers(updatedList);
+    } catch (err: any) {
+      console.error(err);
+      const detail = err.response?.data?.detail || "Import failed. Please verify file format.";
+      showToast(detail, "error");
+    } finally {
+      setIsUploading(false);
+      setUploadStep("");
+    }
+  };
+
+  const resetImportState = () => {
+    setImportFile(null);
+    setImportResult(null);
+    setIsUploading(false);
+    setUploadStep("");
+  };
+
+  const handleCloseImport = () => {
+    setIsImportOpen(false);
+    resetImportState();
+  };
+
+  const downloadSampleCSV = () => {
+    const csvContent = "name,email,company,phone,status\n" +
+      "Madhav Khera,madhav@example.com,Gupshup,9876543210,Customer\n" +
+      "Manoj Kumar,manoj@example.com,DriveX,9123456789,Lead\n" +
+      "Jane Doe,jane@example.com,TechCorp,,Opportunity\n";
+      
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", "sample_customers.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
   
   // Form State
   const [name, setName] = useState("");
@@ -139,6 +248,14 @@ function CustomerListPage() {
               </button>
             ))}
           </div>
+
+          <Button
+            onClick={() => setIsImportOpen(true)}
+            className="font-bold border border-[var(--primary)] bg-[rgba(200,110,75,0.08)] text-[var(--primary)] hover:bg-[var(--primary)] hover:text-white transition-all duration-200"
+          >
+            <Upload size={16} />
+            Import CSV
+          </Button>
 
           <Button onClick={() => setIsAddOpen(true)}>
             <Plus size={18} />
@@ -292,6 +409,174 @@ function CustomerListPage() {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* CSV Import Modal */}
+      <Modal isOpen={isImportOpen} onClose={handleCloseImport} title="CSV Bulk Import">
+        <div className="space-y-6">
+          {!importResult && (
+            <div className="space-y-4">
+              {/* Expected Format Tips */}
+              <div className="p-4 rounded-2xl bg-[var(--background)] border border-[var(--border)] space-y-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)]">
+                  Expected CSV Format
+                </span>
+                <p className="font-mono text-xs text-[var(--primary)] bg-white p-2.5 rounded-xl border border-[var(--border)] select-all overflow-x-auto whitespace-nowrap">
+                  name,email,company,phone,status
+                </p>
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-[10px] text-[var(--text-secondary)]">
+                    * Required: name, email (others are optional).
+                  </span>
+                  <button
+                    onClick={downloadSampleCSV}
+                    className="text-xs font-bold text-[var(--primary)] hover:text-[var(--primary-hover)] transition-colors cursor-pointer"
+                  >
+                    Download Sample CSV
+                  </button>
+                </div>
+              </div>
+
+              {/* Drag and Drop Zone */}
+              {!importFile ? (
+                <div
+                  onDragEnter={handleDrag}
+                  onDragOver={handleDrag}
+                  onDragLeave={handleDrag}
+                  onDrop={handleDrop}
+                  className={`
+                    border-2 border-dashed rounded-3xl p-8 flex flex-col items-center justify-center gap-3 transition-all cursor-pointer relative overflow-hidden min-h-[180px]
+                    ${dragActive 
+                      ? "border-[var(--primary)] bg-[var(--accent)]/15 scale-[0.99]" 
+                      : "border-[var(--border)] hover:border-gray-400 bg-white"
+                    }
+                  `}
+                >
+                  <input
+                    type="file"
+                    accept=".csv"
+                    onChange={handleFileChange}
+                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                    disabled={isUploading}
+                  />
+                  <div className="h-12 w-12 rounded-2xl bg-[var(--background)] border border-[var(--border)] flex items-center justify-center text-[var(--primary)] shadow-xs">
+                    <Upload size={20} />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs font-bold text-[var(--text)]">
+                      Drag & Drop CSV File here
+                    </p>
+                    <p className="text-[10px] text-[var(--text-secondary)] mt-1">
+                      or click to browse your local directory
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                /* Selected File Preview */
+                <div className="p-4 rounded-2xl border border-[var(--border)] bg-white flex items-center justify-between gap-3 shadow-xs">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="h-10 w-10 rounded-xl bg-[var(--accent)] text-[var(--primary)] flex items-center justify-center flex-shrink-0">
+                      <FileText size={18} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-[var(--text)] truncate">
+                        {importFile.name}
+                      </p>
+                      <p className="text-[10px] text-[var(--text-secondary)]">
+                        {(importFile.size / 1024).toFixed(1)} KB
+                      </p>
+                    </div>
+                  </div>
+                  {!isUploading && (
+                    <button
+                      onClick={resetImportState}
+                      className="p-1.5 rounded-lg text-[var(--text-secondary)] hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Uploading Stepper Progress */}
+          {isUploading && (
+            <div className="py-6 flex flex-col items-center justify-center gap-4 text-center">
+              <div className="relative flex items-center justify-center">
+                <div className="h-12 w-12 rounded-full border-[3px] border-[var(--accent)] border-t-[var(--primary)] animate-spin" />
+                <Bot size={18} className="absolute text-[var(--primary)] animate-pulse" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-bold text-[var(--text)]">
+                  {uploadStep}
+                </p>
+                <p className="text-[10px] text-[var(--text-secondary)] animate-pulse">
+                  Please hold, this might take a moment.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Import Result Summary */}
+          {importResult && (
+            <div className="space-y-6">
+              {/* Summary Cards Grid */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-100 text-center">
+                  <p className="text-xs font-bold text-emerald-800">✔ Imported</p>
+                  <p className="text-lg font-black text-emerald-600 mt-1">{importResult.imported}</p>
+                </div>
+                <div className="p-3 rounded-2xl bg-amber-50 border border-amber-100 text-center">
+                  <p className="text-xs font-bold text-amber-800">⚠ Skipped</p>
+                  <p className="text-lg font-black text-amber-600 mt-1">{importResult.skipped}</p>
+                </div>
+                <div className="p-3 rounded-2xl bg-rose-50 border border-rose-100 text-center">
+                  <p className="text-xs font-bold text-rose-800">❌ Failed</p>
+                  <p className="text-lg font-black text-rose-600 mt-1">{importResult.failed}</p>
+                </div>
+              </div>
+
+              {/* Row Level Errors Box */}
+              {importResult.errors.length > 0 && (
+                <div className="space-y-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)] flex items-center gap-1.5">
+                    <AlertCircle size={14} className="text-rose-500" />
+                    Row-Level Failures ({importResult.errors.length})
+                  </span>
+                  <div className="max-h-[160px] overflow-y-auto p-3 rounded-2xl border border-rose-200 bg-rose-50/30 space-y-1.5">
+                    {importResult.errors.map((err, idx) => (
+                      <p key={idx} className="text-xs text-rose-700 font-medium leading-relaxed">
+                        {err}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Reset to upload more button */}
+              <Button onClick={resetImportState} variant="secondary" fullWidth className="font-bold border border-[var(--border)]">
+                Import Another File
+              </Button>
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          {!isUploading && !importResult && (
+            <div className="flex gap-3">
+              <Button onClick={handleCloseImport} variant="secondary" className="flex-1 font-bold border border-[var(--border)]">
+                Cancel
+              </Button>
+              <Button
+                onClick={triggerUpload}
+                disabled={!importFile}
+                className="flex-1 font-bold"
+              >
+                Upload File
+              </Button>
+            </div>
+          )}
+        </div>
       </Modal>
     </div>
   );

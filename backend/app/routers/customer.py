@@ -96,4 +96,53 @@ def generate_customer_ai_summary(
     customer_id: int,
     db: Session = Depends(get_db),
 ):
-    return generate_and_store_summary(db, customer_id)
+    return generate_and_store_summary(db, customer_id)
+
+
+from fastapi import UploadFile, File
+from app.services.customer_service import import_customers_from_csv
+
+@router.post(
+    "/import",
+    response_model=dict,
+)
+def import_customers_endpoint(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    # Reject files that don't have .csv extension
+    if not file.filename or not file.filename.endswith(".csv"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid file format. Only CSV files (.csv) are accepted."
+        )
+
+    # Read bytes
+    try:
+        content_bytes = file.file.read()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unable to read file: {e}"
+        )
+
+    # Reject empty files
+    if not content_bytes or len(content_bytes) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Uploaded CSV file is empty."
+        )
+
+    # Decode bytes safely
+    try:
+        content_str = content_bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        try:
+            content_str = content_bytes.decode("latin-1")
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Unable to decode file content. Please check file encoding."
+            )
+
+    return import_customers_from_csv(db, content_str)

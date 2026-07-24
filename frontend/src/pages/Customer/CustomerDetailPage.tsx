@@ -14,6 +14,8 @@ import {
   MessageSquare,
   RefreshCw,
   ArrowRight,
+  Upload,
+  FileText,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { customerApi, noteApi, aiApi } from "../../services/api";
@@ -61,6 +63,174 @@ function CustomerDetailPage() {
   // New Note State
   const [newNoteContent, setNewNoteContent] = useState("");
   const [isCreatingNote, setIsCreatingNote] = useState(false);
+
+  // Transcript Importer State
+  const [isTranscriptOpen, setIsTranscriptOpen] = useState(false);
+  const [transcriptFile, setTranscriptFile] = useState<File | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisStep, setAnalysisStep] = useState("");
+  const [dragActive, setDragActive] = useState(false);
+  const [extractedData, setExtractedData] = useState<{
+    overview: {
+      meeting_summary: string;
+      key_topics: string[];
+      action_items: string[];
+      overall_sentiment: string;
+    };
+    notes: {
+      content: string;
+      confidence: number;
+      is_duplicate: boolean;
+      checked?: boolean;
+    }[];
+  } | null>(null);
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const file = e.dataTransfer.files[0];
+      if (file.name.endsWith(".txt") || file.name.endsWith(".docx")) {
+        setTranscriptFile(file);
+      } else {
+        showToast("Invalid file format. Please select a .txt or .docx file.", "warning");
+      }
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      if (file.name.endsWith(".txt") || file.name.endsWith(".docx")) {
+        setTranscriptFile(file);
+      } else {
+        showToast("Invalid file format. Please select a .txt or .docx file.", "warning");
+      }
+    }
+  };
+
+  const triggerAnalysis = async () => {
+    if (!transcriptFile) return;
+    setIsAnalyzing(true);
+    setExtractedData(null);
+    
+    setAnalysisStep("Uploading document...");
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    
+    setAnalysisStep("Reading document...");
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    
+    setAnalysisStep("Analyzing conversation...");
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    
+    setAnalysisStep("Extracting customer interactions...");
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    
+    setAnalysisStep("Preparing review...");
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    
+    try {
+      const result = await noteApi.importPreview(customerId, transcriptFile);
+      const enrichedNotes = result.notes.map(n => ({ ...n, checked: true }));
+      setExtractedData({
+        overview: result.overview,
+        notes: enrichedNotes
+      });
+      showToast("Transcript analyzed successfully! Ready for review.", "success");
+    } catch (err: any) {
+      console.error(err);
+      const detail = err.response?.data?.detail || "Failed to analyze transcript.";
+      showToast(detail, "error");
+    } finally {
+      setIsAnalyzing(false);
+      setAnalysisStep("");
+    }
+  };
+
+  const handleConfirmImport = async () => {
+    if (!extractedData) return;
+    const notesToImport = extractedData.notes
+      .filter((n) => n.checked)
+      .map((n) => n.content);
+      
+    if (notesToImport.length === 0) {
+      showToast("Please select at least one interaction to import.", "warning");
+      return;
+    }
+    
+    setIsAnalyzing(true);
+    setAnalysisStep("Importing conversation timeline...");
+    
+    try {
+      const duplicateCount = extractedData.notes.filter(n => n.checked && n.is_duplicate).length;
+      const result = await noteApi.importConfirm(customerId, notesToImport);
+      showToast(`Imported ${result.imported} notes. Skipped ${duplicateCount} duplicates.`, "success");
+      
+      const notesData = await noteApi.getByCustomerId(customerId);
+      setNotes(notesData);
+      
+      setAiSummary((prev) => (prev ? { ...prev, is_outdated: true } : null));
+      
+      setIsTranscriptOpen(false);
+      resetTranscriptState();
+    } catch (err) {
+      console.error(err);
+      showToast("Failed to save transcript notes.", "error");
+    } finally {
+      setIsAnalyzing(false);
+      setAnalysisStep("");
+    }
+  };
+
+  const handleToggleExtractedNote = (index: number) => {
+    if (!extractedData) return;
+    const updatedNotes = [...extractedData.notes];
+    updatedNotes[index].checked = !updatedNotes[index].checked;
+    setExtractedData({
+      ...extractedData,
+      notes: updatedNotes
+    });
+  };
+
+  const handleTextareaChange = (index: number, newText: string) => {
+    if (!extractedData) return;
+    const updatedNotes = [...extractedData.notes];
+    updatedNotes[index].content = newText;
+    setExtractedData({
+      ...extractedData,
+      notes: updatedNotes
+    });
+  };
+
+  const resetTranscriptState = () => {
+    setTranscriptFile(null);
+    setExtractedData(null);
+    setIsAnalyzing(false);
+    setAnalysisStep("");
+  };
+
+  const handleCloseTranscript = () => {
+    setIsTranscriptOpen(false);
+    resetTranscriptState();
+  };
+
+  const getConfidenceLevel = (score: number) => {
+    if (score >= 0.8) return { label: "High Confidence", color: "bg-emerald-50 text-emerald-800 border-emerald-200" };
+    if (score >= 0.5) return { label: "Medium Confidence", color: "bg-amber-50 text-amber-800 border-amber-200" };
+    return { label: "Low Confidence", color: "bg-rose-50 text-rose-800 border-rose-200" };
+  };
 
   // Note editing state
   const [editingNoteId, setEditingNoteId] = useState<number | null>(null);
@@ -361,7 +531,15 @@ function CustomerDetailPage() {
                   disabled={isCreatingNote}
                   className="w-full h-28 rounded-2xl border border-[var(--border)] bg-[var(--background)]/40 p-4 text-sm text-[var(--text)] outline-none transition-all duration-200 placeholder:text-[var(--text-secondary)] focus:bg-white focus:border-[var(--primary)] focus:ring-4 focus:ring-[rgba(200,110,75,0.08)] resize-none"
                 />
-                <div className="flex justify-end">
+                <div className="flex justify-between items-center">
+                  <Button
+                    type="button"
+                    onClick={() => setIsTranscriptOpen(true)}
+                    className="font-bold border border-[var(--primary)] bg-[rgba(200,110,75,0.08)] text-[var(--primary)] hover:bg-[var(--primary)] hover:text-white transition-all duration-200"
+                  >
+                    <Upload size={16} />
+                    Import Transcript
+                  </Button>
                   <Button type="submit" disabled={isCreatingNote}>
                     <Plus size={16} />
                     {isCreatingNote ? "Saving..." : "Log Note"}
@@ -719,6 +897,247 @@ function CustomerDetailPage() {
         confirmText="Discard Log"
         isLoading={isDeletingNote}
       />
+      {/* Import Transcript / Conversation Modal */}
+      <Modal isOpen={isTranscriptOpen} onClose={handleCloseTranscript} title="Import Conversation" size="lg">
+        <div className="space-y-6">
+          {!extractedData && (
+            <div className="space-y-4">
+              <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+                Upload a call transcript, chat log, email thread, or meeting minutes (.txt or .docx). The Gemini model will analyze the conversation to extract key interactions and summarize the meeting.
+              </p>
+
+              {/* Drag and Drop Zone */}
+              {!transcriptFile ? (
+                <div
+                  onDragEnter={handleDrag}
+                  onDragOver={handleDrag}
+                  onDragLeave={handleDrag}
+                  onDrop={handleDrop}
+                  className={`
+                    border-2 border-dashed rounded-3xl p-8 flex flex-col items-center justify-center gap-3 transition-all cursor-pointer relative overflow-hidden min-h-[180px]
+                    ${dragActive 
+                      ? "border-[var(--primary)] bg-[var(--accent)]/15 scale-[0.99]" 
+                      : "border-[var(--border)] hover:border-gray-400 bg-white"
+                    }
+                  `}
+                >
+                  <input
+                    type="file"
+                    accept=".txt,.docx"
+                    onChange={handleFileChange}
+                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                    disabled={isAnalyzing}
+                  />
+                  <div className="h-12 w-12 rounded-2xl bg-[var(--background)] border border-[var(--border)] flex items-center justify-center text-[var(--primary)] shadow-xs">
+                    <Upload size={20} />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs font-bold text-[var(--text)]">
+                      Drag & Drop Transcript here
+                    </p>
+                    <p className="text-[10px] text-[var(--text-secondary)] mt-1">
+                      Supports .txt and .docx file formats
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                /* Selected File Preview */
+                <div className="p-4 rounded-2xl border border-[var(--border)] bg-white flex items-center justify-between gap-3 shadow-xs">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="h-10 w-10 rounded-xl bg-[var(--accent)] text-[var(--primary)] flex items-center justify-center flex-shrink-0">
+                      <FileText size={18} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-[var(--text)] truncate">
+                        {transcriptFile.name}
+                      </p>
+                      <p className="text-[10px] text-[var(--text-secondary)]">
+                        {(transcriptFile.size / 1024).toFixed(1)} KB
+                      </p>
+                    </div>
+                  </div>
+                  {!isAnalyzing && (
+                    <button
+                      onClick={resetTranscriptState}
+                      className="p-1.5 rounded-lg text-[var(--text-secondary)] hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Uploading Stepper Progress */}
+          {isAnalyzing && (
+            <div className="py-8 flex flex-col items-center justify-center gap-4 text-center">
+              <div className="relative flex items-center justify-center">
+                <div className="h-12 w-12 rounded-full border-[3px] border-[var(--accent)] border-t-[var(--primary)] animate-spin" />
+                <Bot size={18} className="absolute text-[var(--primary)] animate-pulse" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-bold text-[var(--text)]">
+                  {analysisStep}
+                </p>
+                <p className="text-[10px] text-[var(--text-secondary)] animate-pulse">
+                  Gemini is digesting raw files...
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Extracted Review Screen */}
+          {extractedData && (
+            <div className="space-y-6">
+              {/* Conversation Overview Summary Card */}
+              <div className="p-5 rounded-3xl border border-[var(--border)] bg-[var(--background)]/40 space-y-4">
+                <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
+                  <h4 className="font-extrabold text-[var(--text)] text-sm uppercase tracking-wider">
+                    Conversation Overview
+                  </h4>
+                  {/* Sentiment Badge */}
+                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-black border uppercase tracking-wider ${
+                    extractedData.overview.overall_sentiment === "Positive"
+                      ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                      : extractedData.overview.overall_sentiment === "Negative"
+                      ? "bg-rose-50 text-rose-800 border-rose-200"
+                      : "bg-amber-50 text-amber-800 border-amber-200"
+                  }`}>
+                    {extractedData.overview.overall_sentiment} Sentiment
+                  </span>
+                </div>
+
+                <div className="space-y-3 text-xs">
+                  {/* Summary */}
+                  <div className="space-y-1">
+                    <p className="font-bold text-[var(--text-secondary)]">Meeting Summary</p>
+                    <p className="leading-relaxed text-[var(--text)]">{extractedData.overview.meeting_summary}</p>
+                  </div>
+
+                  {/* Two Column Grid for Key Topics and Action Items */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-[var(--border)]/80">
+                    <div className="space-y-1.5">
+                      <p className="font-bold text-[var(--text-secondary)]">Key Topics</p>
+                      <ul className="space-y-1.5 list-none p-0 m-0">
+                        {extractedData.overview.key_topics.map((t, idx) => (
+                          <li key={idx} className="flex items-start gap-2 text-[var(--text)] text-xs font-semibold leading-relaxed">
+                            <span className="h-1.5 w-1.5 bg-[var(--primary)] rounded-full mt-[6px] flex-shrink-0" />
+                            <span>{t}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="space-y-1.5">
+                      <p className="font-bold text-[var(--text-secondary)]">Action Items</p>
+                      <ul className="space-y-1.5 list-none p-0 m-0">
+                        {extractedData.overview.action_items.map((a, idx) => (
+                          <li key={idx} className="flex items-start gap-2 text-[var(--text)] text-xs font-semibold leading-relaxed">
+                            <span className="h-1.5 w-1.5 bg-[var(--primary)] rounded-full mt-[6px] flex-shrink-0" />
+                            <span>{a}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Extracted Notes Cards */}
+              <div className="space-y-4">
+                <span className="text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)]">
+                  Extracted Interactions ({extractedData.notes.length})
+                </span>
+                
+                <div className="space-y-3">
+                  {extractedData.notes.map((note, idx) => {
+                    const confidence = getConfidenceLevel(note.confidence);
+                    return (
+                      <div
+                        key={idx}
+                        className={`p-4 rounded-2xl border bg-white space-y-3 shadow-xs transition-colors ${
+                          note.checked ? "border-[var(--border)]" : "border-dashed border-gray-200 opacity-60"
+                        }`}
+                      >
+                        {/* Header toolbar */}
+                        <div className="flex items-center justify-between gap-3">
+                          <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                            <div
+                              onClick={() => handleToggleExtractedNote(idx)}
+                              className={`custom-checkbox ${note.checked ? "checked" : ""}`}
+                            >
+                              {note.checked && (
+                                <svg className="h-2.5 w-2.5 text-white fill-current" viewBox="0 0 20 20">
+                                  <path d="M0 11l2-2 5 5L18 3l2 2L7 18z" fill="#ffffff" />
+                                </svg>
+                              )}
+                            </div>
+                            <span className="text-xs font-bold text-[var(--text)]">
+                              Import this note
+                            </span>
+                          </label>
+
+                          <div className="flex items-center gap-2">
+                            {/* Duplicate Warning Badge */}
+                            {note.is_duplicate && (
+                              <span className="px-2 py-0.5 rounded-lg text-[9px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                Possible Duplicate
+                              </span>
+                            )}
+                            {/* Confidence level */}
+                            <span className={`px-2 py-0.5 rounded-lg text-[9px] font-bold border ${confidence.color}`}>
+                              {confidence.label}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Note text field */}
+                        {note.checked && (
+                          <textarea
+                            value={note.content}
+                            onChange={(e) => handleTextareaChange(idx, e.target.value)}
+                            className="w-full h-20 rounded-xl border border-[var(--border)] bg-[var(--background)]/30 p-3 text-xs text-[var(--text)] outline-none focus:bg-white focus:border-[var(--primary)] transition-all resize-none font-semibold leading-relaxed"
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Reset upload */}
+              <Button onClick={resetTranscriptState} variant="secondary" fullWidth className="font-bold border border-[var(--border)]">
+                Upload Different File
+              </Button>
+            </div>
+          )}
+
+          {/* Action Footer Buttons */}
+          {!isAnalyzing && (
+            <div className="flex gap-3 pt-4 border-t border-[var(--border)]">
+              <Button onClick={handleCloseTranscript} variant="secondary" className="flex-1 font-bold border border-[var(--border)]">
+                Cancel
+              </Button>
+              {!extractedData ? (
+                <Button
+                  onClick={triggerAnalysis}
+                  disabled={!transcriptFile}
+                  className="flex-1 font-bold"
+                >
+                  Analyze File
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleConfirmImport}
+                  className="flex-1 font-bold"
+                >
+                  Import Selected
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 }

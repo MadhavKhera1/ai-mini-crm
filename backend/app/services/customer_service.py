@@ -112,3 +112,110 @@ def delete_customer(
 
     db.delete(customer)
     db.commit()
+
+
+def import_customers_from_csv(db: Session, csv_content: str) -> dict:
+    import csv
+    import io
+    import re
+    
+    EMAIL_REGEX = re.compile(r"^[^@]+@[^@]+\.[^@]+$")
+    ALLOWED_STATUSES = {"Lead", "Contacted", "Opportunity", "Customer", "Closed"}
+    
+    f = io.StringIO(csv_content)
+    reader = csv.DictReader(f)
+    
+    if not reader.fieldnames:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="CSV file is empty or formatted incorrectly."
+        )
+        
+    # Standardize fieldnames (stripped and lowercase)
+    headers = [h.strip().lower() for h in reader.fieldnames if h]
+    
+    if "name" not in headers or "email" not in headers:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Missing required CSV headers. File must contain 'name' and 'email'."
+        )
+        
+    # Map headers to original keys
+    key_map = {}
+    for h in reader.fieldnames:
+        if h:
+            key_map[h.strip().lower()] = h
+            
+    total = 0
+    imported = 0
+    skipped = 0
+    failed = 0
+    errors = []
+    
+    # Load all existing emails from the database into memory for quick lookup
+    existing_emails = {c[0] for c in db.query(Customer.email).all()}
+    processed_emails_in_batch = set()
+    
+    row_idx = 1
+    for row in reader:
+        row_idx += 1
+        total += 1
+        
+        name_val = row.get(key_map.get("name", ""))
+        email_val = row.get(key_map.get("email", ""))
+        company_val = row.get(key_map.get("company", ""))
+        phone_val = row.get(key_map.get("phone", ""))
+        status_val = row.get(key_map.get("status", ""))
+        
+        name = name_val.strip() if name_val else ""
+        email = email_val.strip() if email_val else ""
+        company = company_val.strip() if company_val else ""
+        phone = phone_val.strip() if phone_val else ""
+        status_str = status_val.strip() if status_val else "Lead"
+        
+        # Validation checks
+        if not name:
+            failed += 1
+            errors.append(f"Row {row_idx}: Name cannot be empty.")
+            continue
+            
+        if not email:
+            failed += 1
+            errors.append(f"Row {row_idx}: Email cannot be empty.")
+            continue
+            
+        if not EMAIL_REGEX.match(email):
+            failed += 1
+            errors.append(f"Row {row_idx}: Invalid email format.")
+            continue
+            
+        if status_str not in ALLOWED_STATUSES:
+            failed += 1
+            errors.append(f"Row {row_idx}: Invalid status '{status_str}'. Allowed values: Lead, Contacted, Opportunity, Customer, Closed.")
+            continue
+            
+        # Check duplicates
+        if email in existing_emails or email in processed_emails_in_batch:
+            skipped += 1
+            continue
+            
+        db_customer = Customer(
+            name=name,
+            email=email,
+            company=company,
+            phone=phone,
+            status=status_str
+        )
+        db.add(db_customer)
+        processed_emails_in_batch.add(email)
+        imported += 1
+        
+    db.commit()
+    
+    return {
+        "total": total,
+        "imported": imported,
+        "skipped": skipped,
+        "failed": failed,
+        "errors": errors
+    }

@@ -42,6 +42,23 @@ export const customerApi = {
   delete: async (id: number): Promise<void> => {
     await client.delete(`/customers/${id}`);
   },
+
+  importCustomers: async (file: File): Promise<{
+    total: number;
+    imported: number;
+    skipped: number;
+    failed: number;
+    errors: string[];
+  }> => {
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await client.post("/customers/import", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+    return response.data;
+  },
 };
 
 export const noteApi = {
@@ -62,6 +79,37 @@ export const noteApi = {
 
   delete: async (noteId: number): Promise<void> => {
     await client.delete(`/notes/${noteId}`);
+  },
+
+  importPreview: async (
+    customerId: number,
+    file: File
+  ): Promise<{
+    overview: {
+      meeting_summary: string;
+      key_topics: string[];
+      action_items: string[];
+      overall_sentiment: string;
+    };
+    notes: {
+      content: string;
+      confidence: number;
+      is_duplicate: boolean;
+    }[];
+  }> => {
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await client.post(`/customers/${customerId}/notes/import-preview`, formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+    return response.data;
+  },
+
+  importConfirm: async (customerId: number, notes: string[]): Promise<{ imported: number }> => {
+    const response = await client.post(`/customers/${customerId}/notes/import-confirm`, { notes });
+    return response.data;
   },
 };
 
