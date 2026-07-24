@@ -89,6 +89,9 @@ from app.services.note_service import (
 from app.models.note import Note
 from app.services.ai_service import mark_summary_outdated
 
+import logging
+logger = logging.getLogger("uvicorn.error")
+
 @router.post(
     "/customers/{customer_id}/notes/import-preview",
     response_model=dict
@@ -127,6 +130,7 @@ def import_notes_preview_endpoint(
             detail=f"Could not parse file content: {e}"
         )
         
+    logger.info(f"Analyzing conversation transcript '{filename}' for customer ID {customer_id}")
     result = parse_conversation_with_gemini(text_content)
     candidate_notes = result.get("notes", [])
     deduplicated_notes = detect_duplicates(db, customer_id, candidate_notes)
@@ -163,6 +167,7 @@ def import_notes_confirm_endpoint(
     if inserted_count > 0:
         db.commit()
         mark_summary_outdated(db, customer_id)
+        logger.info(f"Successfully imported {inserted_count} timeline logs from transcript for customer ID {customer_id}")
         
     return {
         "imported": inserted_count

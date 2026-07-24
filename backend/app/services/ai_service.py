@@ -75,8 +75,13 @@ def generate_and_store_summary(db: Session, customer_id: int) -> AISummary:
         3. 'action_items': A list of up to 4 concrete next steps to close the deal or maintain positive follow-up.
         """
 
+        import logging
+        logger = logging.getLogger("uvicorn.error")
+        logger.info(f"Generating AI Summary for customer ID {customer_id} (Interaction logs count: {len(notes)})")
+
         # Check if Gemini API key exists
         if not GEMINI_API_KEY:
+            logger.info("GEMINI_API_KEY not found. Running heuristic fallback summary generator.")
             result = generate_heuristic_summary(customer, notes)
         else:
             try:
@@ -96,8 +101,9 @@ def generate_and_store_summary(db: Session, customer_id: int) -> AISummary:
                 )
 
                 result = json.loads(response.text)
+                logger.info(f"Successfully generated AI Summary using Gemini 3.6 Flash for customer ID {customer_id}")
             except Exception as e:
-                print(f"Gemini API invocation failed: {e}. Falling back to rule-based engine.")
+                logger.error(f"Gemini API summary invocation failed for customer ID {customer_id}: {e}. Falling back to rule-based engine.")
                 result = generate_heuristic_summary(customer, notes)
 
     # Save to database

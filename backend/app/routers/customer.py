@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Response, status, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -102,6 +102,9 @@ def generate_customer_ai_summary(
 from fastapi import UploadFile, File
 from app.services.customer_service import import_customers_from_csv
 
+import logging
+logger = logging.getLogger("uvicorn.error")
+
 @router.post(
     "/import",
     response_model=dict,
@@ -145,4 +148,6 @@ def import_customers_endpoint(
                 detail="Unable to decode file content. Please check file encoding."
             )
 
-    return import_customers_from_csv(db, content_str)
+    result = import_customers_from_csv(db, content_str)
+    logger.info(f"Bulk CSV Import complete for '{file.filename}': Total={result['total']}, Imported={result['imported']}, Skipped={result['skipped']}, Failed={result['failed']}")
+    return result

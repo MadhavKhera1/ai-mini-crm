@@ -1,8 +1,11 @@
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
+import logging
 
 from app.models.customer import Customer
 from app.schemas.customer import CustomerCreate, CustomerUpdate
+
+logger = logging.getLogger("uvicorn.error")
 
 
 def create_customer(db: Session, customer: CustomerCreate) -> Customer:
@@ -30,6 +33,7 @@ def create_customer(db: Session, customer: CustomerCreate) -> Customer:
     db.commit()
     db.refresh(db_customer)
 
+    logger.info(f"Successfully registered customer profile: {db_customer.name} ({db_customer.email}) [ID: {db_customer.id}]")
     return db_customer
 
 def get_all_customers(db: Session) -> list[Customer]:
@@ -112,6 +116,7 @@ def delete_customer(
 
     db.delete(customer)
     db.commit()
+    logger.info(f"Successfully discarded customer profile ID: {customer_id}")
 
 
 def import_customers_from_csv(db: Session, csv_content: str) -> dict:
