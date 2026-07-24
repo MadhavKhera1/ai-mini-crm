@@ -184,5 +184,7 @@ Also compile a high-level conversation overview:
 
 ---
 
-## 🔒 License
-Distributed under the MIT License. See `LICENSE` for more information.
+## ⚠️ Known Limitations
+
+*   **Gemini Free-Tier Rate Limits**: The Gemini free tier has a daily request quota limit (20 requests/day). Exceeding this quota triggers rate limiting, which automatically falls back to our local regex parser.
+*   **In-Memory Duplicate Check**: The string similarity matcher is executed in memory during the preview stage. For extremely large conversation transcript uploads (> 100 pages), this could cause memory overhead.
